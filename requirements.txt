@@ -9,7 +9,10 @@ numpy>=1.26.0,<2.0.0
 # Lemmatization - using simplemma (Python 3.13 compatible)
 simplemma>=1.0.0
 
-# NER for German - Flair (Python 3.13 compatible)
+# NER for German - NLTK (Python 3.13 compatible)
+nltk>=3.8.0
+
+# Optional: Keep Flair for app.py compatibility
 flair>=0.13.0
 torch>=2.0.0  # Required by Flair
 
