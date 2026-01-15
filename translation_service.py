@@ -32,7 +32,7 @@ class ClaudeTranslationProvider(TranslationProvider):
     
     def __init__(self, claude_client):
         self.client = claude_client
-        self.model = "claude-3-sonnet-20240229"
+        self.model = "claude-sonnet-4-20250514"
         
     def translate(self, text: str, source_lang: str = 'German', target_lang: str = 'English') -> str:
         """Translate a single word or phrase using Claude"""

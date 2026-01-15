@@ -423,7 +423,7 @@ class AIService:
             Simplified text:"""
             
             response = self.claude_client.messages.create(
-                model="claude-3-5-sonnet-20240620",
+                model="claude-sonnet-4-20250514",
                 max_tokens=1000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -504,7 +504,7 @@ class TranslationService:
             {target_lang} translation:"""
             
             response = self.ai_service.claude_client.messages.create(
-                model="claude-3-5-sonnet-20240620",
+                model="claude-sonnet-4-20250514",
                 max_tokens=50,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -579,7 +579,7 @@ class TranslationService:
                 Provide ONLY the translations, one per line:"""
                 
                 response = self.ai_service.claude_client.messages.create(
-                    model="claude-3-sonnet-20240229",
+                    model="claude-sonnet-4-20250514",
                     max_tokens=500,
                     messages=[{"role": "user", "content": prompt}]
                 )
