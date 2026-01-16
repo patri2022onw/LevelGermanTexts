@@ -1,0 +1,12 @@
+# requirements-dev.txt
+# Development dependencies for German Language Analyzer
+
+-r requirements.txt
+
+# Type checking
+mypy>=1.8.0
+types-requests>=2.31.0
+
+# Testing
+pytest>=8.0.0
+pytest-cov>=4.1.0
