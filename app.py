@@ -31,9 +31,10 @@ st.set_page_config(
 )
 
 # Fixed paths for vocabulary files (using absolute paths based on script location)
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-VOCAB_DIR = os.path.join(SCRIPT_DIR, "vocabulary")
-STOPWORDS_FILE = os.path.join(SCRIPT_DIR, "german_stopwords_plain.txt")
+from pathlib import Path
+SCRIPT_DIR = Path(__file__).resolve().parent
+VOCAB_DIR = str(SCRIPT_DIR / "vocabulary")
+STOPWORDS_FILE = str(SCRIPT_DIR / "german_stopwords_plain.txt")
 
 # Remove the session state initialization for analyzer
 if 'analysis_results' not in st.session_state:
