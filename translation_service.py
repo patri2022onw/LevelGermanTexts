@@ -108,21 +108,24 @@ class ClaudeTranslationProvider(TranslationProvider):
 
 class GeminiTranslationProvider(TranslationProvider):
     """Translation provider using Gemini AI"""
-    
-    def __init__(self, gemini_model):
-        self.model = gemini_model
-        
+
+    def __init__(self, gemini_client):
+        self.client = gemini_client
+
     def translate(self, text: str, source_lang: str = 'German', target_lang: str = 'English') -> str:
         """Translate a single word or phrase using Gemini"""
         try:
             prompt = f"""Translate the {source_lang} word or phrase "{text}" to {target_lang}.
             Provide ONLY the translation, no explanations or additional text.
             If the word has multiple meanings, provide the most common one used in educational contexts.
-            
+
             {source_lang}: {text}
             {target_lang}:"""
-            
-            response = self.model.generate_content(prompt)
+
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
             translation = response.text.strip()
             return translation if translation else text
             
@@ -149,8 +152,11 @@ class GeminiTranslationProvider(TranslationProvider):
             
             Provide ONLY the {target_lang} translations (numbered):"""
             
-            response = self.model.generate_content(prompt)
-            
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+
             # Parse response
             translations_text = response.text.strip()
             translation_lines = translations_text.split('\n')
@@ -235,9 +241,9 @@ class TranslationService:
             if self.ai_service.claude_client:
                 self.provider = ClaudeTranslationProvider(self.ai_service.claude_client)
                 logger.info("Initialized Claude translation provider")
-        elif self.ai_model == "Gemini" and self.ai_service and hasattr(self.ai_service, 'gemini_model'):
-            if self.ai_service.gemini_model:
-                self.provider = GeminiTranslationProvider(self.ai_service.gemini_model)
+        elif self.ai_model == "Gemini" and self.ai_service and hasattr(self.ai_service, 'gemini_client'):
+            if self.ai_service.gemini_client:
+                self.provider = GeminiTranslationProvider(self.ai_service.gemini_client)
                 logger.info("Initialized Gemini translation provider")
         else:
             self.provider = MockTranslationProvider()
