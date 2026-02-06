@@ -9,12 +9,9 @@ numpy>=1.26.0,<3.0.0
 # Lemmatization - using simplemma (Python 3.13 compatible)
 simplemma>=1.0.0
 
-# NER for German - NLTK (Python 3.13 compatible)
-nltk>=3.8.0
-
-# Optional: Keep Flair for app.py compatibility
-flair>=0.14.0,<0.16.0
-torch>=2.0.0  # Required by Flair
+# NER for German - spaCy (lightweight, no PyTorch required)
+spacy==3.8.11
+https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl
 
 # AI services
 anthropic>=0.40.0,<1.0.0

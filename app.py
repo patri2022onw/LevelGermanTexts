@@ -13,11 +13,10 @@ from google import genai
 
 # NER imports
 try:
-    from flair.data import Sentence
-    from flair.models import SequenceTagger
-    FLAIR_AVAILABLE = True
+    import spacy
+    SPACY_AVAILABLE = True
 except ImportError:
-    FLAIR_AVAILABLE = False
+    SPACY_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,63 +40,55 @@ if 'analysis_results' not in st.session_state:
 
 
 class GermanNERService:
-    """Named Entity Recognition service for German text using Flair"""
-    
+    """Named Entity Recognition service for German text using spaCy"""
+
     def __init__(self):
         self.ner_model = None
         self.fallback_mode = False
-        
+
     @st.cache_resource
     def _load_ner_model(_self):
-        """Load and cache the Flair NER model"""
-        if not FLAIR_AVAILABLE:
-            logger.warning("Flair not available, using fallback NER")
+        """Load and cache the spaCy NER model"""
+        if not SPACY_AVAILABLE:
+            logger.warning("spaCy not available, using fallback NER")
             return None
-            
+
         try:
-            # Load German NER model
-            model = SequenceTagger.load('de-ner')
-            logger.info("Loaded Flair German NER model")
+            model = spacy.load('de_core_news_sm')
+            logger.info("Loaded spaCy German NER model (de_core_news_sm)")
             return model
         except Exception as e:
-            logger.error(f"Error loading Flair model: {e}")
+            logger.error(f"Error loading spaCy model: {e}")
             return None
-    
+
     def initialize(self):
         """Initialize the NER service"""
-        if FLAIR_AVAILABLE:
+        if SPACY_AVAILABLE:
             self.ner_model = self._load_ner_model()
             if self.ner_model is None:
                 self.fallback_mode = True
         else:
             self.fallback_mode = True
-            
+
     def extract_entities(self, text: str) -> Set[str]:
         """Extract named entities from text"""
         if self.fallback_mode or self.ner_model is None:
             return self._fallback_ner(text)
-            
+
         try:
-            # Create Flair sentence
-            sentence = Sentence(text)
-            
-            # Predict NER tags
-            self.ner_model.predict(sentence)
-            
-            # Extract entities
+            doc = self.ner_model(text)
+
             entities = set()
-            for entity in sentence.get_spans('ner'):
-                # Focus on person names, locations, and organizations
-                if entity.tag in ['PER', 'LOC', 'ORG']:
-                    # Get the entity text and normalize
-                    entity_text = entity.text.strip()
+            for ent in doc.ents:
+                if ent.label_ in ('PER', 'LOC', 'ORG'):
+                    entity_text = ent.text.strip()
                     if len(entity_text) > 1:
                         entities.add(entity_text.lower())
-                        
+
             return entities
-            
+
         except Exception as e:
-            logger.error(f"Flair NER error: {e}")
+            logger.error(f"spaCy NER error: {e}")
             return self._fallback_ner(text)
     
     def _fallback_ner(self, text: str) -> Set[str]:
@@ -134,7 +125,7 @@ class GermanNERService:
 
 
 class GermanLanguageAnalyzer:
-    """Main class for analyzing German texts based on CEFR levels using simplemma and Flair NER"""
+    """Main class for analyzing German texts based on CEFR levels using simplemma and spaCy NER"""
     
     def __init__(self):
         self.word_levels = {}
@@ -256,7 +247,7 @@ class GermanLanguageAnalyzer:
         return level_order[word_level] > level_order[target_level]
     
     def analyze_text(self, text: str, target_level: str) -> Dict:
-        """Analyze text and find words above the target level using simplemma and Flair NER"""
+        """Analyze text and find words above the target level using simplemma and spaCy NER"""
         tokens = self.simple_tokenize(text)
         
         # Extract named entities first
@@ -270,7 +261,7 @@ class GermanLanguageAnalyzer:
             'word_levels_found': {},
             'skipped_words': [],
             'entities_found': list(entities),
-            'ner_method': 'Flair' if not self.ner_service.fallback_mode else 'Fallback'
+            'ner_method': 'spaCy' if not self.ner_service.fallback_mode else 'Fallback'
         }
         
         for i, token in enumerate(tokens):
@@ -294,7 +285,7 @@ class GermanLanguageAnalyzer:
                 'is_entity': self.ner_service.is_entity(token, entities)
             })
             
-            # Skip named entities using Flair NER
+            # Skip named entities using spaCy NER
             if self.ner_service.is_entity(token, entities):
                 skipped_entities.add(token)
                 debug_info['skipped_words'].append(f"{token} (named entity)")
@@ -703,11 +694,11 @@ def get_analyzer() -> GermanLanguageAnalyzer:
 # Main Streamlit App
 def main():
     st.title("🇩🇪 Re-level German Texts")
-    st.markdown("Adjust German texts based on CEFR levels using simplemma lemmatization and Flair NER")
+    st.markdown("Adjust German texts based on CEFR levels using simplemma lemmatization and spaCy NER")
     
-    # Check Flair availability
-    if not FLAIR_AVAILABLE:
-        st.warning("⚠️ Flair not installed. Install with: `pip install flair`")
+    # Check spaCy availability
+    if not SPACY_AVAILABLE:
+        st.warning("⚠️ spaCy not installed. Install with: `pip install spacy` and `python -m spacy download de_core_news_sm`")
         st.info("Using fallback NER (basic capitalization rules)")
     
     # Get cached analyzer
@@ -727,8 +718,8 @@ def main():
         
         # NER Status
         st.subheader("🎯 NER Status")
-        if FLAIR_AVAILABLE and not analyzer.ner_service.fallback_mode:
-            st.success("✅ Flair German NER loaded")
+        if SPACY_AVAILABLE and not analyzer.ner_service.fallback_mode:
+            st.success("✅ spaCy German NER loaded")
             st.caption("High-accuracy named entity detection")
         else:
             st.warning("⚠️ Using fallback NER")
@@ -857,7 +848,7 @@ und die Vögel zwitschern fröhlich in den Bäumen. Berlin ist eine wunderschön
         if not text_input:
             st.error("Please enter some text to analyze.")
         else:
-            with st.spinner("Analyzing text with simplemma and Flair NER..."):
+            with st.spinner("Analyzing text with simplemma and spaCy NER..."):
                 try:
                     # Perform analysis
                     analysis_results = analyzer.analyze_text(text_input, target_level)
@@ -1010,7 +1001,7 @@ und die Vögel zwitschern fröhlich in den Bäumen. Berlin ist eine wunderschön
     
     ### ℹ️ Notes
     - Uses simplemma for fast and accurate German lemmatization
-    - Uses Flair for high-accuracy named entity recognition (falls back to heuristics if not available)
+    - Uses spaCy for high-accuracy named entity recognition (falls back to heuristics if not available)
     - Vocabulary files are loaded from the `vocabulary/` directory
     - Named entities and core German words are automatically excluded
     - For better results, provide API keys for Claude or Gemini

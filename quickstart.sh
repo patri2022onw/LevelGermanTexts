@@ -34,23 +34,20 @@ pip install --upgrade pip
 pip install -r requirements.txt
 echo "✅ Requirements installed"
 
-# Check for NLTK installation and download NER data
-echo -e "\n📍 Setting up NLTK NER data..."
+# Verify spaCy model installation
+echo -e "\n📍 Checking spaCy NER model..."
 python -c "
 try:
-    import nltk
-    print('ℹ️  NLTK detected, downloading required data packages...')
-    nltk.download('punkt', quiet=True)
-    nltk.download('averaged_perceptron_tagger', quiet=True)
-    nltk.download('maxent_ne_chunker', quiet=True)
-    nltk.download('words', quiet=True)
-    print('✅ NLTK data packages downloaded and cached')
+    import spacy
+    nlp = spacy.load('de_core_news_sm')
+    print('✅ spaCy German NER model (de_core_news_sm) loaded successfully')
 except ImportError:
-    print('⚠️  NLTK not installed - using fallback NER')
-    print('   Install NLTK for better NER: pip install nltk')
-except Exception as e:
-    print(f'⚠️  Could not download NLTK data: {e}')
-    print('   Fallback NER will be used')
+    print('⚠️  spaCy not installed - using fallback NER')
+except OSError:
+    print('⚠️  spaCy model not found, downloading de_core_news_sm...')
+    import subprocess
+    subprocess.check_call(['python', '-m', 'spacy', 'download', 'de_core_news_sm'])
+    print('✅ spaCy model downloaded')
 "
 
 # Note: Simplemma is dependency-free
@@ -89,11 +86,11 @@ echo -e "\n✨ Setup complete!"
 echo -e "\n📋 Next steps:"
 echo "1. Add your vocabulary files (A1.csv, A2.csv, etc.) to the vocabulary/ directory"
 echo "2. Add your API keys to .streamlit/secrets.toml (optional)"
-echo "3. Run the app with: streamlit run app.py (Flair NER) or streamlit run streamlit_app.py (NLTK NER)"
+echo "3. Run the app with: streamlit run app.py"
 echo -e "\n💡 Features:"
 echo "   - Uses simplemma for fast, dependency-free German lemmatization"
-echo "   - Uses NLTK with German enhancements for named entity recognition"
-echo "   - Falls back to enhanced heuristic NER if NLTK not available"
+echo "   - Uses spaCy with de_core_news_sm for named entity recognition"
+echo "   - Falls back to enhanced heuristic NER if spaCy not available"
 echo "   - Optimized for Python 3.13 compatibility"
 echo "   - Supports Claude and Gemini AI integration"
 echo -e "\n💡 For deployment on Streamlit Cloud:"
