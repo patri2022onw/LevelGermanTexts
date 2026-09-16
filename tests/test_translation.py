@@ -5,6 +5,19 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 
+def claude_response(text):
+    """Build a Claude response whose text sits behind a thinking block.
+
+    Opus 5 thinks by default, so a realistic response has content[0] as a
+    thinking block - mocks that put the text first would hide that.
+    """
+    thinking = MagicMock(type="thinking", thinking="...")
+    body = MagicMock(type="text", text=text)
+    response = MagicMock()
+    response.content = [thinking, body]
+    return response
+
+
 class TestClaudeTranslationProvider:
     """Tests for Claude translation provider."""
 
@@ -12,9 +25,7 @@ class TestClaudeTranslationProvider:
     def mock_claude_client(self):
         """Create a mock Claude client."""
         client = MagicMock()
-        response = MagicMock()
-        response.content = [MagicMock(text="book")]
-        client.messages.create.return_value = response
+        client.messages.create.return_value = claude_response("book")
         return client
 
     @pytest.fixture
@@ -34,8 +45,10 @@ class TestClaudeTranslationProvider:
         """Test that translation uses the correct model."""
         provider.translate("Buch")
 
+        from translation_service import CLAUDE_MODEL
+
         call_kwargs = mock_claude_client.messages.create.call_args[1]
-        assert call_kwargs['model'] == "claude-sonnet-4-20250514"
+        assert call_kwargs['model'] == CLAUDE_MODEL
 
     def test_translate_error_returns_original(self, provider, mock_claude_client):
         """Test that translation errors return the original text."""
@@ -51,9 +64,9 @@ class TestClaudeTranslationProvider:
 
     def test_translate_batch_returns_dict(self, provider, mock_claude_client):
         """Test batch translation returns dictionary."""
-        response = MagicMock()
-        response.content = [MagicMock(text="1. book\n2. house")]
-        mock_claude_client.messages.create.return_value = response
+        mock_claude_client.messages.create.return_value = claude_response(
+            "1. book\n2. house"
+        )
 
         result = provider.translate_batch(["Buch", "Haus"])
 
@@ -65,30 +78,30 @@ class TestGeminiTranslationProvider:
     """Tests for Gemini translation provider."""
 
     @pytest.fixture
-    def mock_gemini_model(self):
-        """Create a mock Gemini model."""
-        model = MagicMock()
+    def mock_gemini_client(self):
+        """Create a mock google-genai client."""
+        client = MagicMock()
         response = MagicMock()
         response.text = "book"
-        model.generate_content.return_value = response
-        return model
+        client.models.generate_content.return_value = response
+        return client
 
     @pytest.fixture
-    def provider(self, mock_gemini_model):
-        """Create GeminiTranslationProvider with mocked model."""
+    def provider(self, mock_gemini_client):
+        """Create GeminiTranslationProvider with mocked client."""
         from translation_service import GeminiTranslationProvider
-        return GeminiTranslationProvider(mock_gemini_model)
+        return GeminiTranslationProvider(mock_gemini_client)
 
-    def test_translate_single_word(self, provider, mock_gemini_model):
+    def test_translate_single_word(self, provider, mock_gemini_client):
         """Test translating a single word."""
         result = provider.translate("Buch", "German", "English")
 
         assert result == "book"
-        mock_gemini_model.generate_content.assert_called_once()
+        mock_gemini_client.models.generate_content.assert_called_once()
 
-    def test_translate_error_returns_original(self, provider, mock_gemini_model):
+    def test_translate_error_returns_original(self, provider, mock_gemini_client):
         """Test that translation errors return the original text."""
-        mock_gemini_model.generate_content.side_effect = Exception("API Error")
+        mock_gemini_client.models.generate_content.side_effect = Exception("API Error")
 
         result = provider.translate("Buch")
         assert result == "Buch"

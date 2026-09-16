@@ -1,31 +1,27 @@
 # requirements.txt
-# German Language Analyzer dependencies - Optimized for Python 3.13
+# German Language Analyzer dependencies
+# Requires Python >= 3.11 (anthropic 1.x needs >= 3.10, pandas 3.x needs >= 3.11).
+# runtime.txt pins 3.12 for Streamlit Cloud - the version this stack was verified on.
 
 # Core dependencies
-streamlit>=1.35.0,<2.0.0
-pandas>=2.0.0,<3.0.0
-numpy>=1.26.0,<3.0.0
+streamlit>=1.40.0,<2.0.0
+pandas>=2.2.0,<4.0.0
 
-# Lemmatization - using simplemma (Python 3.13 compatible)
-simplemma>=1.0.0
+# Lemmatization
+# Pinned below 2.0: simplemma 2.0 lemmatizes participial adjectives back to their
+# verb ("kompliziert" -> "komplizieren") and restores pre-1996 spellings
+# ("Fluss" -> "Fluß"), which makes 78 entries in vocabulary/ unreachable.
+simplemma>=1.2.0,<2.0.0
 
 # NER for German - spaCy (lightweight, no PyTorch required)
-spacy==3.8.11
+# Keep spaCy on 3.8.x: the model wheel below is built for that minor version.
+spacy>=3.8.11,<3.9.0
 https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl
 
 # AI services
-anthropic>=0.40.0,<1.0.0
-google-genai>=1.0.0,<2.0.0
-requests>=2.31.0
+anthropic>=1.6.0,<2.0.0
+google-genai>=2.0.0,<3.0.0
 
-# Core scientific packages
-scipy>=1.11.0
-
-# Build tools (important for Python 3.12+)
+# Build tools
 setuptools>=65.0.0
 wheel>=0.38.0
-
-# Additional dependencies that might be needed
-# If you encounter issues, uncomment these:
-# scikit-learn>=1.3.0,<1.5.0
-# matplotlib>=3.7.0,<3.10.0
