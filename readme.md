@@ -1,18 +1,18 @@
 # 🇩🇪 German Language Analyzer
 
-A comprehensive web application for analyzing German texts based on CEFR levels (A1-C1), designed for language instructors and learners. Powered by **simplemma** for fast, dependency-free German lemmatization and **NLTK** for German-enhanced named entity recognition.
+A comprehensive web application for analyzing German texts based on CEFR levels (A1-C1), designed for language instructors and learners. Powered by **simplemma** for fast, dependency-free German lemmatization and **spaCy** for German named entity recognition.
 
-![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
-![Streamlit](https://img.shields.io/badge/streamlit-1.28+-red.svg)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+![Streamlit](https://img.shields.io/badge/streamlit-1.40+-red.svg)
 ![Simplemma](https://img.shields.io/badge/simplemma-dependency--free-green.svg)
-![NLTK](https://img.shields.io/badge/nltk-NER-blue.svg)
+![spaCy](https://img.shields.io/badge/spaCy-NER-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## 🌟 Features
 
 - **CEFR Level Analysis**: Automatically identify words above selected proficiency levels
 - **Fast Lemmatization**: Uses simplemma for dependency-free German word processing
-- **Advanced Named Entity Recognition**: Uses NLTK with German-specific enhancements for detection of persons, locations, and organizations
+- **Advanced Named Entity Recognition**: Uses spaCy's `de_core_news_sm` model for detection of persons, locations, and organizations
 - **Two Analysis Modes**:
   - **Leveling**: Simplify texts by removing/replacing difficult words
   - **Labeling**: Generate vocabulary lists with translations
@@ -23,7 +23,7 @@ A comprehensive web application for analyzing German texts based on CEFR levels 
 - **Multi-language Translation**: AI-powered translations to English, French, Spanish, Italian, Polish, and Russian
 - **Intelligent Filtering**: Automatically exclude named entities and core German words
 - **Batch Processing**: CLI tool for processing multiple files
-- **Graceful Degradation**: Falls back to enhanced heuristic NER if NLTK unavailable
+- **Graceful Degradation**: Falls back to enhanced heuristic NER if spaCy unavailable
 
 ## 🚀 Quick Start
 
@@ -55,11 +55,7 @@ A comprehensive web application for analyzing German texts based on CEFR levels 
 
 4. **Run the application**
    ```bash
-   # For original Flair-based NER
    streamlit run app.py
-   
-   # For NLTK-based NER
-   streamlit run streamlit_app.py
    ```
 
 ### Option 2: Deploy on Streamlit Cloud
@@ -74,15 +70,14 @@ A comprehensive web application for analyzing German texts based on CEFR levels 
 ```
 german-language-analyzer/
 │
-├── app.py                      # Main Streamlit application (Flair-based NER)
-├── streamlit_app.py           # NLTK-based NER version
+├── app.py                      # Main Streamlit application (spaCy-based NER)
 ├── requirements.txt            # Python dependencies
 ├── translation_service.py      # Enhanced translation service
 ├── cli_batch_processor.py      # CLI for batch processing
 ├── check_files.py             # File verification script
 │
-├── quickstart.sh              # Setup script (Linux/Mac) - downloads NLTK data
-├── quickstart.bat             # Setup script (Windows) - downloads NLTK data
+├── quickstart.sh              # Setup script (Linux/Mac) - downloads the spaCy model
+├── quickstart.bat             # Setup script (Windows) - downloads the spaCy model
 │
 ├── .streamlit/
 │   ├── config.toml           # Streamlit configuration
@@ -177,10 +172,10 @@ No additional translation API keys required - translations are included with the
 
 ## 📈 Performance Tips
 
-- **Fast Startup**: Simplemma works instantly, NLTK data downloaded once
+- **Fast Startup**: Simplemma works instantly, the spaCy model loads once
 - **Large Files**: Split texts over 10,000 words
-- **Caching**: The app caches vocabulary mappings, translations, and NLTK data
-- **Memory**: Simplemma uses minimal memory; NLTK data loaded once and cached
+- **Caching**: The app caches vocabulary mappings, translations, and the spaCy model
+- **Memory**: Simplemma uses minimal memory; the spaCy model (~15MB) is loaded once and cached
 - **Batch Processing**: Use CLI for multiple files
 - **NER Options**: Use fallback NER for faster processing if high accuracy not needed
 
@@ -206,12 +201,11 @@ Create custom vocabulary lists following the CSV format with a `Lemma` column.
 
 **Import errors**
 - Ensure all dependencies are installed: `pip install -r requirements.txt`
-- Simplemma works out-of-the-box, NLTK optional
+- Simplemma works out-of-the-box, spaCy optional
 
-**NLTK NER issues**
-- If NLTK not installed: `pip install nltk`
-- If NLTK data download fails, fallback NER will be used automatically
-- First run may take longer due to NLTK data download
+**spaCy NER issues**
+- If the model is missing: `python -m spacy download de_core_news_sm`
+- If the model cannot be loaded, the heuristic fallback NER is used automatically
 
 **File encoding issues**
 - Ensure all files use UTF-8 encoding
@@ -222,7 +216,6 @@ Create custom vocabulary lists following the CSV format with a `Lemma` column.
 - Increase Streamlit limits
 - Use batch processing
 - Consider using fallback NER for lower memory usage
-- Use `streamlit_app.py` for NLTK-based NER (lower memory than Flair)
 
 **Lemmatization issues**
 - Simplemma works out-of-the-box for German
@@ -246,7 +239,7 @@ Contributions are welcome! Please:
 
 - [CEFR Levels](https://www.coe.int/en/web/common-european-framework-reference-languages)
 - [Simplemma Documentation](https://github.com/adbar/simplemma)
-- [NLTK Documentation](https://www.nltk.org/)
+- [spaCy Documentation](https://spacy.io/)
 - [Streamlit Documentation](https://docs.streamlit.io/)
 - [Anthropic Claude API](https://docs.anthropic.com/)
 - [Google Gemini API](https://ai.google.dev/)

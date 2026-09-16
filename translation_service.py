@@ -12,6 +12,18 @@ import json
 
 logger = logging.getLogger(__name__)
 
+# Claude model used by ClaudeTranslationProvider
+CLAUDE_MODEL = "claude-opus-5"
+
+
+def claude_text(response) -> str:
+    """Return the text of a Claude response.
+
+    Claude Opus 5 thinks by default, so response.content[0] is usually a
+    thinking block - the text has to be picked out by block type.
+    """
+    return "".join(b.text for b in response.content if b.type == "text").strip()
+
 
 class TranslationProvider(ABC):
     """Abstract base class for translation providers"""
@@ -32,7 +44,7 @@ class ClaudeTranslationProvider(TranslationProvider):
     
     def __init__(self, claude_client):
         self.client = claude_client
-        self.model = "claude-sonnet-4-20250514"
+        self.model = CLAUDE_MODEL
         
     def translate(self, text: str, source_lang: str = 'German', target_lang: str = 'English') -> str:
         """Translate a single word or phrase using Claude"""
@@ -46,11 +58,12 @@ class ClaudeTranslationProvider(TranslationProvider):
             
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=50,
+                max_tokens=2000,
+                output_config={"effort": "low"},
                 messages=[{"role": "user", "content": prompt}]
             )
             
-            translation = response.content[0].text.strip()
+            translation = claude_text(response)
             return translation if translation else text
             
         except Exception as e:
@@ -78,12 +91,13 @@ class ClaudeTranslationProvider(TranslationProvider):
             
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=500,
+                max_tokens=8000,
+                output_config={"effort": "low"},
                 messages=[{"role": "user", "content": prompt}]
             )
             
             # Parse response
-            translations_text = response.content[0].text.strip()
+            translations_text = claude_text(response)
             translation_lines = translations_text.split('\n')
             
             translations = {}

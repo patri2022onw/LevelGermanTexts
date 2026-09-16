@@ -1,1 +1,19 @@
 /CLAUDE.md
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Secrets - API keys belong here, never in the repo
+.streamlit/secrets.toml
+
+# macOS
+.DS_Store

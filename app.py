@@ -22,6 +22,18 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Claude model used for simplification and translation
+CLAUDE_MODEL = "claude-opus-5"
+
+
+def claude_text(response) -> str:
+    """Return the text of a Claude response.
+
+    Claude Opus 5 thinks by default, so response.content[0] is usually a
+    thinking block - the text has to be picked out by block type.
+    """
+    return "".join(b.text for b in response.content if b.type == "text").strip()
+
 # Page configuration
 st.set_page_config(
     page_title="Re-level German Texts",
@@ -365,12 +377,12 @@ class AIService:
             Simplified text:"""
             
             response = self.claude_client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=1000,
+                model=CLAUDE_MODEL,
+                max_tokens=16000,
                 messages=[{"role": "user", "content": prompt}]
             )
             
-            return response.content[0].text
+            return claude_text(response)
         except Exception as e:
             logger.error(f"Error using Claude: {e}")
             return text
@@ -446,12 +458,13 @@ class TranslationService:
             {target_lang} translation:"""
             
             response = self.ai_service.claude_client.messages.create(
-                model="claude-sonnet-4-20250514",
-                max_tokens=50,
+                model=CLAUDE_MODEL,
+                max_tokens=2000,
+                output_config={"effort": "low"},
                 messages=[{"role": "user", "content": prompt}]
             )
             
-            translation = response.content[0].text.strip()
+            translation = claude_text(response)
             # Ensure translation starts with lowercase
             if translation:
                 translation = translation[0].lower() + translation[1:] if len(translation) > 1 else translation.lower()
@@ -521,12 +534,13 @@ class TranslationService:
                 Provide ONLY the translations, one per line:"""
                 
                 response = self.ai_service.claude_client.messages.create(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=500,
+                    model=CLAUDE_MODEL,
+                    max_tokens=8000,
+                    output_config={"effort": "low"},
                     messages=[{"role": "user", "content": prompt}]
                 )
                 
-                translations_text = response.content[0].text.strip()
+                translations_text = claude_text(response)
                 
             elif self.ai_model == "Gemini" and self.ai_service.gemini_client:  # Updated condition
                 prompt = f"""Translate these German words to {target_lang}.
