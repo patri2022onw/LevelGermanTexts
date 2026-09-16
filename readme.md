@@ -2,8 +2,8 @@
 
 A comprehensive web application for analyzing German texts based on CEFR levels (A1-C1), designed for language instructors and learners. Powered by **simplemma** for fast, dependency-free German lemmatization and **spaCy** for German named entity recognition.
 
-![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
-![Streamlit](https://img.shields.io/badge/streamlit-1.28+-red.svg)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
+![Streamlit](https://img.shields.io/badge/streamlit-1.40+-red.svg)
 ![Simplemma](https://img.shields.io/badge/simplemma-dependency--free-green.svg)
 ![spaCy](https://img.shields.io/badge/spaCy-NER-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
@@ -55,11 +55,7 @@ A comprehensive web application for analyzing German texts based on CEFR levels 
 
 4. **Run the application**
    ```bash
-   # For original Flair-based NER
    streamlit run app.py
-   
-   # For spaCy-based NER
-   streamlit run streamlit_app.py
    ```
 
 ### Option 2: Deploy on Streamlit Cloud
@@ -74,8 +70,7 @@ A comprehensive web application for analyzing German texts based on CEFR levels 
 ```
 german-language-analyzer/
 │
-├── app.py                      # Main Streamlit application (Flair-based NER)
-├── streamlit_app.py           # Legacy NLTK-based version (unused; kept for reference)
+├── app.py                      # Main Streamlit application (spaCy-based NER)
 ├── requirements.txt            # Python dependencies
 ├── translation_service.py      # Enhanced translation service
 ├── cli_batch_processor.py      # CLI for batch processing
@@ -221,7 +216,6 @@ Create custom vocabulary lists following the CSV format with a `Lemma` column.
 - Increase Streamlit limits
 - Use batch processing
 - Consider using fallback NER for lower memory usage
-- `app.py` is the current entry point; `streamlit_app.py` is a legacy NLTK version and is no longer maintained
 
 **Lemmatization issues**
 - Simplemma works out-of-the-box for German
