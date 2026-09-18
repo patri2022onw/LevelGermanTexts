@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 # Claude model used for simplification and translation
 CLAUDE_MODEL = "claude-opus-5"
 
+# Bucket label for words that appear in no CEFR vocabulary file. They are treated
+# as above every target level: if a word is not listed up to C1, a learner at the
+# target level cannot be assumed to know it.
+UNKNOWN_LEVEL = "Not listed"
+
 
 def claude_text(response) -> str:
     """Return the text of a Claude response.
@@ -257,7 +262,20 @@ class GermanLanguageAnalyzer:
             return False
             
         return level_order[word_level] > level_order[target_level]
-    
+
+    def level_bucket(self, lemma: str, target_level: str) -> Optional[str]:
+        """Return the bucket a lemma belongs in, or None if it is at/below target.
+
+        A lemma that is in no vocabulary file lands in the UNKNOWN_LEVEL bucket,
+        so unlisted words end up in the word list and get translated too.
+        """
+        word_level = self.get_word_level(lemma)
+
+        if word_level is None:
+            return UNKNOWN_LEVEL
+
+        return word_level if self.is_above_level(word_level, target_level) else None
+
     def analyze_text(self, text: str, target_level: str) -> Dict:
         """Analyze text and find words above the target level using simplemma and spaCy NER"""
         tokens = self.simple_tokenize(text)
@@ -277,10 +295,14 @@ class GermanLanguageAnalyzer:
         }
         
         for i, token in enumerate(tokens):
-            # Skip punctuation
+            # Skip punctuation, numbers and single-letter fragments (e.g. the
+            # "z" and "B" of "z.B."), none of which belong in a word list
             if re.match(r'^[^\w]$', token):
                 continue
-                
+            if len(token) < 2 or not any(c.isalpha() for c in token):
+                debug_info['skipped_words'].append(f"{token} (not a word)")
+                continue
+
             # Get lemma using simplemma
             lemma = simplemma.lemmatize(token, lang='de')
             lemma_lower = lemma.lower()
@@ -317,9 +339,12 @@ class GermanLanguageAnalyzer:
             word_level = self.get_word_level(lemma)
             if word_level:
                 debug_info['word_levels_found'][lemma] = word_level
-                
-            if word_level and self.is_above_level(word_level, target_level):
-                words_above_level[word_level].append({
+
+            # Words above the target level and words in no list at all both
+            # belong in the word list
+            bucket = self.level_bucket(lemma, target_level)
+            if bucket:
+                words_above_level[bucket].append({
                     'original': token,
                     'lemma': lemma,
                     'pos': pos,
@@ -414,7 +439,10 @@ class AIService:
 
 class TranslationService:
     """Service for translating German words to various languages using AI"""
-    
+
+    # Words per AI request; keeps each response well inside max_tokens
+    BATCH_SIZE = 50
+
     def __init__(self, ai_service: Optional['AIService'] = None, ai_model: str = "Claude"):
         self.ai_service = ai_service
         self.ai_model = ai_model
@@ -505,13 +533,17 @@ class TranslationService:
         
         # For batch translation with AI, we can optimize by sending multiple words at once
         if self.ai_service and self.ai_model != "None" and len(words) > 5:
-            # Batch translate for efficiency
-            uncached_words = [w for w in words if f"{w}_{target_lang}_{self.ai_model}" not in self.translation_cache]
+            # Batch translate for efficiency, preserving order and dropping repeats
+            uncached_words = list(dict.fromkeys(
+                w for w in words
+                if f"{w}_{target_lang}_{self.ai_model}" not in self.translation_cache
+            ))
             
-            if uncached_words:
-                batch_translations = self._batch_translate_with_ai(uncached_words, target_lang)
-                translations.update(batch_translations)
-        
+            # Chunk so one long text cannot outgrow the response budget
+            for start in range(0, len(uncached_words), self.BATCH_SIZE):
+                chunk = uncached_words[start:start + self.BATCH_SIZE]
+                translations.update(self._batch_translate_with_ai(chunk, target_lang))
+
         # Translate remaining words individually (or all if batch not used)
         for word in words:
             if word not in translations:
@@ -519,20 +551,30 @@ class TranslationService:
         
         return translations
     
+    def _build_batch_prompt(self, words: List[str], target_lang: str) -> str:
+        """Prompt asking for 'german = translation' lines.
+
+        Echoing the German word makes parsing order-independent, so a preamble
+        or a skipped word cannot shift every translation onto the wrong entry.
+        """
+        words_str = '\n'.join(words)
+        return f"""Translate each of these German words to {target_lang}.
+
+Reply with one line per word in the exact format:
+german word = {target_lang.lower()} translation
+
+Repeat the German word exactly as given. Give the most common meaning only,
+with no numbering, no commentary and no blank lines.
+
+German words:
+{words_str}"""
+
     def _batch_translate_with_ai(self, words: List[str], target_lang: str) -> Dict[str, str]:
         """Batch translate multiple words with AI for efficiency"""
         try:
-            words_str = ', '.join([f'"{w}"' for w in words])
-            
+            prompt = self._build_batch_prompt(words, target_lang)
+
             if self.ai_model == "Claude" and self.ai_service.claude_client:
-                prompt = f"""Translate these German words to {target_lang}.
-                Format your response as a simple list with one translation per line, 
-                in the same order as the input words.
-                
-                German words: {words_str}
-                
-                Provide ONLY the translations, one per line:"""
-                
                 response = self.ai_service.claude_client.messages.create(
                     model=CLAUDE_MODEL,
                     max_tokens=8000,
@@ -543,14 +585,6 @@ class TranslationService:
                 translations_text = claude_text(response)
                 
             elif self.ai_model == "Gemini" and self.ai_service.gemini_client:  # Updated condition
-                prompt = f"""Translate these German words to {target_lang}.
-                Format your response as a simple list with one translation per line, 
-                in the same order as the input words.
-                
-                German words: {words_str}
-                
-                Provide ONLY the translations, one per line:"""
-                
                 # Updated to use new API
                 response = self.ai_service.gemini_client.models.generate_content(
                     model="gemini-2.5-flash",  # Updated model name
@@ -560,21 +594,33 @@ class TranslationService:
             else:
                 return {}
             
-            # Parse the response
-            translation_lines = translations_text.split('\n')
+            # Parse "german = translation" lines, matching on the echoed word so
+            # a missing or extra line only costs that one entry
+            by_lemma = {w.lower(): w for w in words}
             translations = {}
-            
-            for i, word in enumerate(words):
-                if i < len(translation_lines):
-                    translation = translation_lines[i].strip()
-                    # Ensure translation starts with lowercase
-                    if translation:
-                        translation = translation[0].lower() + translation[1:] if len(translation) > 1 else translation.lower()
-                        translations[word] = translation
-                        # Cache it
-                        cache_key = f"{word}_{target_lang}_{self.ai_model}"
-                        self.translation_cache[cache_key] = translation
-                
+
+            for line in translations_text.split('\n'):
+                if '=' not in line:
+                    continue
+
+                source, _, translation = line.partition('=')
+                word = by_lemma.get(source.strip().lower())
+                translation = translation.strip()
+
+                if not word or not translation:
+                    continue
+
+                # Ensure translation starts with lowercase
+                translation = translation[0].lower() + translation[1:]
+                translations[word] = translation
+                # Cache it
+                cache_key = f"{word}_{target_lang}_{self.ai_model}"
+                self.translation_cache[cache_key] = translation
+
+            missing = [w for w in words if w not in translations]
+            if missing:
+                logger.warning(f"Batch translation missed {len(missing)} words: {missing[:10]}")
+
             return translations
             
         except Exception as e:
@@ -607,20 +653,27 @@ def create_leveled_text(analyzer: GermanLanguageAnalyzer, text: str, target_leve
         
     result_tokens = []
     
+    # Only the words the analysis flagged get replaced, so the placeholder pass
+    # honours the same entity/stopword exclusions as the analysis itself
+    flagged_indices = {
+        w['index']
+        for level_words in analysis['words_above_level'].values()
+        for w in level_words
+    }
+
     for i, token in enumerate(tokens):
-        lemma = simplemma.lemmatize(token, lang='de')
-        word_level = analyzer.get_word_level(lemma)
-        
-        if word_level and analyzer.is_above_level(word_level, target_level):
-            # Skip the word or replace with placeholder
+        if i in flagged_indices:
+            # Collapse a run of replaced words into a single placeholder
+            if result_tokens and result_tokens[-1] == "[...]":
+                continue
             result_tokens.append("[...]")
         else:
             result_tokens.append(token)
-            
-    # Reconstruct text with proper spacing
+
+    # Reconstruct text, spacing every token except punctuation
     result = ""
     for i, token in enumerate(result_tokens):
-        if i > 0 and not re.match(r'^[^\w]$', token) and result_tokens[i-1] != "[...]":
+        if i > 0 and not re.match(r'^[^\w]$', token):
             result += " "
         result += token
         
@@ -633,39 +686,38 @@ def create_word_lists(analyzer: GermanLanguageAnalyzer, analysis_results: Dict,
     """Create word lists with translations for words above the target level"""
     translation_service = TranslationService(ai_service, ai_model)
     
-    # Collect all words that need translation
-    all_words_to_translate = []
-    word_info_map = {}
-    
+    # Collect one entry per lemma: a word repeated in the text is one vocabulary
+    # item, and translating it once keeps the batch aligned and cheap
+    entries = {}
+
     for level, words in analysis_results['words_above_level'].items():
         for word_info in words:
             lemma = word_info['lemma']
-            all_words_to_translate.append(lemma)
-            if lemma not in word_info_map:
-                word_info_map[lemma] = []
-            word_info_map[lemma].append((word_info, level))
-    
+            if lemma not in entries:
+                entries[lemma] = {
+                    'German Word': word_info['original'],
+                    'Lemma': lemma,
+                    'Level': level,
+                    'Count': 0
+                }
+            entries[lemma]['Count'] += 1
+
     # Batch translate all words at once for efficiency
-    if all_words_to_translate:
-        translations = translation_service.translate_batch(all_words_to_translate, target_language)
+    if entries:
+        translations = translation_service.translate_batch(list(entries), target_language)
     else:
         translations = {}
-    
+
     # Build the word data
     word_data = []
-    for level, words in analysis_results['words_above_level'].items():
-        for word_info in words:
-            lemma = word_info['lemma']
-            translation = translations.get(lemma, translation_service.translate_word(lemma, target_language))
-            
-            word_data.append({
-                'German Word': word_info['original'],
-                'Lemma': lemma,
-                'Level': level,
-                'Translation': translation
-            })
-            
-    return pd.DataFrame(word_data)
+    for lemma, entry in entries.items():
+        entry['Translation'] = translations.get(
+            lemma, translation_service.translate_word(lemma, target_language)
+        )
+        word_data.append(entry)
+
+    return pd.DataFrame(word_data,
+                        columns=['German Word', 'Lemma', 'Level', 'Count', 'Translation'])
 
 
 # Use @st.cache_resource to create a singleton analyzer
