@@ -111,3 +111,70 @@ class TestLevelOrdering:
         """Test same level is not above."""
         for level in ['A1', 'A2', 'B1', 'B2', 'C1']:
             assert analyzer.is_above_level(level, level) is False
+
+
+class TestUnlistedWords:
+    """Words in no vocabulary file must still reach the word list."""
+
+    def test_level_bucket_unlisted_word(self, analyzer):
+        """A word in no vocabulary file is bucketed as unlisted at every level."""
+        from app import UNKNOWN_LEVEL
+
+        for target in ('A1', 'B1', 'C1'):
+            assert analyzer.level_bucket('Dekarbonisierung', target) == UNKNOWN_LEVEL
+
+    def test_level_bucket_at_or_below_target(self, analyzer):
+        """A word at or below the target level is not bucketed."""
+        assert analyzer.level_bucket('wissenschaft', 'B1') is None
+        assert analyzer.level_bucket('buch', 'B1') is None
+
+    def test_level_bucket_above_target(self, analyzer):
+        """A listed word above the target keeps its own CEFR level."""
+        assert analyzer.level_bucket('kompliziert', 'A1') == 'B2'
+
+    def test_analyze_text_includes_unlisted_words(self, analyzer):
+        """Unlisted words appear in the results, even at the highest level."""
+        from app import UNKNOWN_LEVEL
+
+        # lowercase to avoid the fallback NER treating them as named entities
+        text = "das ist sehr kompliziert und dekarbonisierung ist schwierig"
+        result = analyzer.analyze_text(text, 'C1')
+
+        unlisted = [w['lemma'] for w in result['words_above_level'].get(UNKNOWN_LEVEL, [])]
+        # simplemma restores canonical German capitalization on the lemma
+        assert 'Dekarbonisierung' in unlisted
+        # 'kompliziert' is B2, so at target C1 it is not flagged
+        assert 'kompliziert' not in unlisted
+
+    def test_analyze_text_skips_numbers_and_single_letters(self, analyzer):
+        """Digits and one-letter fragments never become vocabulary entries."""
+        result = analyzer.analyze_text("im jahr 2024 z b viel", 'A1')
+
+        lemmas = [lemma for _, lemma in result['all_words']]
+        assert '2024' not in lemmas
+        assert 'z' not in lemmas
+        assert 'b' not in lemmas
+
+
+class TestWordListBuilding:
+    """Tests for create_word_lists output shape."""
+
+    def test_word_list_deduplicates_and_counts(self, analyzer):
+        """A repeated word yields one row carrying its occurrence count."""
+        from app import create_word_lists
+
+        text = "dekarbonisierung und dekarbonisierung und dekarbonisierung"
+        result = analyzer.analyze_text(text, 'B1')
+        df = create_word_lists(analyzer, result, 'English', None, 'None')
+
+        rows = df[df['Lemma'] == 'Dekarbonisierung']
+        assert len(rows) == 1
+        assert rows.iloc[0]['Count'] == 3
+
+    def test_word_list_empty_has_columns(self, analyzer):
+        """An empty result still carries the expected columns."""
+        from app import create_word_lists
+
+        df = create_word_lists(analyzer, {'words_above_level': {}}, 'English', None, 'None')
+        assert df.empty
+        assert list(df.columns) == ['German Word', 'Lemma', 'Level', 'Count', 'Translation']
